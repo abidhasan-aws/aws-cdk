@@ -4,11 +4,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { IntegTest } from '@aws-cdk/integ-tests-alpha';
 import { STANDARD_NODEJS_RUNTIME } from '../../config';
 
-const app = new cdk.App({
-  postCliContext: {
-    '@aws-cdk/aws-lambda:useCdkManagedLogGroup': false,
-  },
-});
+const app = new cdk.App();
 
 const stack = new cdk.Stack(app, 'aws-cdk-lambda-log-retention');
 

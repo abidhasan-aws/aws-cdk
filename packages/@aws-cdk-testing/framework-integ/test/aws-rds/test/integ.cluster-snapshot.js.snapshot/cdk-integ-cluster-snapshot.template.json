@@ -548,7 +548,6 @@
      "Statement": [
       {
        "Action": [
-        "rds:AddTagsToResource",
         "rds:CreateDBClusterSnapshot",
         "rds:DeleteDBClusterSnapshot"
        ],
@@ -626,7 +625,7 @@
       "Arn"
      ]
     },
-    "Runtime": "nodejs22.x"
+    "Runtime": "nodejs18.x"
    },
    "DependsOn": [
     "SnapshoterOnEventHandlerServiceRoleDefaultPolicyAF0DFD57",
@@ -745,7 +744,7 @@
       "Arn"
      ]
     },
-    "Runtime": "nodejs22.x"
+    "Runtime": "nodejs18.x"
    },
    "DependsOn": [
     "SnapshoterIsCompleteHandlerServiceRoleDefaultPolicyA43EB222",

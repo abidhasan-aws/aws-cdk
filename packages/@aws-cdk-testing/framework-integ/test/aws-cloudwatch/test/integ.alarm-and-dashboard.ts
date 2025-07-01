@@ -92,7 +92,6 @@ dashboard.addWidgets(new cloudwatch.LogQueryWidget({
   logGroupNames: ['my-log-group'],
   queryString: `fields @message
                 | filter @message like /Error/`,
-  accountId: '123456789012',
 }));
 dashboard.addWidgets(new cloudwatch.SingleValueWidget({
   title: 'Sent message size',

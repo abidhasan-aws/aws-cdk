@@ -8,9 +8,6 @@
   "aws-acmpca": [
     "AWS::ACMPCA"
   ],
-  "aws-aiops": [
-    "AWS::AIOps"
-  ],
   "aws-amazonmq": [
     "AWS::AmazonMQ"
   ],
@@ -767,9 +764,6 @@
   ],
   "aws-workspaces": [
     "AWS::WorkSpaces"
-  ],
-  "aws-workspacesinstances": [
-    "AWS::WorkspacesInstances"
   ],
   "aws-workspacesthinclient": [
     "AWS::WorkSpacesThinClient"

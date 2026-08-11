@@ -70,3 +70,4 @@ timer2.addTarget(new targets.BatchJob(queue.jobQueueArn, queue, job.jobDefinitio
     maxEventAge: cdk.Duration.hours(2),
 }));
 app.synth();
+// Test change for integ test workflow validation

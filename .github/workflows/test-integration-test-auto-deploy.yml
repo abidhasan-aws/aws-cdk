@@ -1,0 +1,223 @@
+# TEST ONLY: Mirrors the real integration-test-auto-deploy.yml but:
+# - Uses github.token (no PROJEN_GITHUB_TOKEN needed)
+# - Mocks verify-approval.js (controlled by MOCK_APPROVAL env var below)
+# - Mocks deploy job (no Atmosphere, no CodeBuild)
+# - Runs entirely on ubuntu-latest
+#
+# To change test scenarios, edit MOCK_APPROVAL below:
+#   "success"         → approval passes, workflow continues
+#   "no_approval"     → fails at approval step (no approvals on PR)
+#   "stale"           → fails at approval step (stale approval)
+#   "not_team_member" → fails at approval step (not a team member)
+#
+# Delete this file after testing is complete.
+
+name: "Test: Integration Test Auto Deploy"
+
+on:
+  workflow_run:
+    workflows: ['Test: Integration Test Approval Trigger']
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+# =====================================================
+# CHANGE THIS TO TEST DIFFERENT SCENARIOS:
+env:
+  MOCK_APPROVAL: "success"
+# =====================================================
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      pr_number: ${{ steps.find-pr.outputs.number }}
+      head_sha: ${{ steps.find-pr.outputs.head_sha }}
+      base_sha: ${{ steps.find-pr.outputs.base_sha }}
+      has_changes: ${{ steps.check-snapshots.outputs.has_changes }}
+      check_id: ${{ steps.create-check.outputs.check_id }}
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Find PR from head SHA
+        id: find-pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const headSha = context.payload.workflow_run.head_sha;
+            core.info(`Looking for PR with head SHA: ${headSha}`);
+
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            core.info(`Found ${prs.length} open PRs total`);
+
+            const matching = prs.filter(p => p.head.sha === headSha);
+            if (matching.length === 0) {
+              // For testing with workflow_dispatch, head_sha is the default branch HEAD.
+              // Fall back to using the most recently updated open PR.
+              core.warning(`No open PR found with head ${headSha}. Using most recent open PR for testing.`);
+              if (prs.length === 0) {
+                core.setFailed('No open PRs found at all');
+                return;
+              }
+              const pr = prs[0]; // most recently updated
+              core.info(`Falling back to PR #${pr.number} (${pr.title})`);
+              core.setOutput('number', String(pr.number));
+              core.setOutput('head_sha', pr.head.sha);
+              core.setOutput('base_sha', pr.base.sha);
+              return;
+            }
+            if (matching.length > 1) {
+              core.setFailed(`Multiple PRs (${matching.length}) found for SHA ${headSha}, aborting`);
+              return;
+            }
+
+            core.info(`Found PR #${matching[0].number} (${matching[0].title})`);
+            core.setOutput('number', String(matching[0].number));
+            core.setOutput('head_sha', matching[0].head.sha);
+            core.setOutput('base_sha', matching[0].base.sha);
+
+      - name: Create check run (in progress)
+        id: create-check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: check } = await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head_sha: '${{ steps.find-pr.outputs.head_sha }}',
+              name: 'Integration Tests (Auto) [TEST]',
+              status: 'in_progress',
+              details_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              output: {
+                title: 'Running validation...',
+                summary: 'Verifying approval and checking for snapshot changes.',
+              },
+            });
+            core.info(`Created check run ID: ${check.id}`);
+            core.setOutput('check_id', String(check.id));
+
+      - name: Verify maintainer approval (MOCK)
+        run: node scripts/verify-approval.js "${{ steps.find-pr.outputs.number }}"
+        env:
+          MOCK_APPROVAL: ${{ env.MOCK_APPROVAL }}
+
+      - name: Check for snapshot changes
+        id: check-snapshots
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comparison } = await github.rest.repos.compareCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base: '${{ steps.find-pr.outputs.base_sha }}',
+              head: '${{ steps.find-pr.outputs.head_sha }}',
+            });
+            const integPattern = /integ\.[^/]*\.js/;
+            const changed = comparison.files
+              .map(f => f.filename)
+              .filter(f => integPattern.test(f));
+
+            core.info(`Total files changed: ${comparison.files.length}`);
+            core.info(`Integ test files changed: ${changed.length}`);
+            changed.forEach(f => core.info(`  - ${f}`));
+
+            if (changed.length === 0) {
+              core.info('No integration test snapshot changes — skipping tests.');
+              core.setOutput('has_changes', 'false');
+            } else {
+              core.info(`Found ${changed.length} changed integ test file(s).`);
+              core.setOutput('has_changes', 'true');
+            }
+
+      - name: Update check run (skipped — no snapshot changes)
+        if: steps.check-snapshots.outputs.has_changes == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.checks.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              check_run_id: ${{ steps.create-check.outputs.check_id }},
+              status: 'completed',
+              conclusion: 'skipped',
+              output: {
+                title: 'Skipped — no integration test changes',
+                summary: 'No `integ.*.js` file changes detected between base and head.',
+              },
+            });
+            core.info('Check run updated to skipped.');
+
+  deploy:
+    needs: validate
+    if: needs.validate.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "[MOCK] Integration test execution"
+        run: |
+          echo "========================================"
+          echo "  MOCK DEPLOY - No actual tests run"
+          echo "========================================"
+          echo ""
+          echo "PR: #${{ needs.validate.outputs.pr_number }}"
+          echo "Head SHA: ${{ needs.validate.outputs.head_sha }}"
+          echo "Base SHA: ${{ needs.validate.outputs.base_sha }}"
+          echo ""
+          echo "In production, this would:"
+          echo "  1. Checkout PR head"
+          echo "  2. yarn install --frozen-lockfile"
+          echo "  3. yarn --cwd tools/@aws-cdk/integration-test-deployment build"
+          echo "  4. yarn run atmosphere-integ-test"
+          echo ""
+          echo "=== MOCK: Tests passed ==="
+
+      - name: Update check run (success)
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.checks.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              check_run_id: ${{ needs.validate.outputs.check_id }},
+              status: 'completed',
+              conclusion: 'success',
+              output: {
+                title: 'Integration tests passed [TEST]',
+                summary: 'Mock deploy succeeded. All validation steps passed.',
+              },
+            });
+
+      - name: Update check run (failure)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.checks.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              check_run_id: ${{ needs.validate.outputs.check_id }},
+              status: 'completed',
+              conclusion: 'failure',
+              output: {
+                title: 'Integration tests failed [TEST]',
+                summary: 'Mock deploy failed. Check workflow logs.',
+              },
+            });

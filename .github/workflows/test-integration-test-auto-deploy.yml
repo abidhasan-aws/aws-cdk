@@ -31,7 +31,7 @@ concurrency:
 # =====================================================
 # CHANGE THIS TO TEST DIFFERENT SCENARIOS:
 env:
-  MOCK_APPROVAL: "success"
+  MOCK_APPROVAL: "no_approval"
 # =====================================================
 
 jobs:

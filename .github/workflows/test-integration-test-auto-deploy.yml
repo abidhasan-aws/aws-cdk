@@ -164,6 +164,24 @@ jobs:
             });
             core.info('Check run updated to skipped.');
 
+      - name: Update check run (validation failed)
+        if: failure() && steps.create-check.outputs.check_id
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.checks.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              check_run_id: ${{ steps.create-check.outputs.check_id }},
+              status: 'completed',
+              conclusion: 'failure',
+              output: {
+                title: 'Validation failed',
+                summary: 'The workflow failed during validation (approval check or snapshot detection). See workflow logs for details.',
+              },
+            });
+            core.info('Check run updated to failure.');
+
   deploy:
     needs: validate
     if: needs.validate.outputs.has_changes == 'true'

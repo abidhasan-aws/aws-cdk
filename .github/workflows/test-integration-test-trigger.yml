@@ -1,0 +1,20 @@
+# TEST ONLY: Manual trigger to simulate the approval trigger.
+# Use the "Run workflow" button in the Actions tab to fire this.
+# After this completes, it fires the test Stage 2 via workflow_run.
+#
+# To test: Actions tab → "Test: Integration Test Approval Trigger" → Run workflow
+
+name: "Test: Integration Test Approval Trigger"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Signal complete
+        run: echo "Manual trigger fired. Stage 2 will fire next via workflow_run."

@@ -1,4 +1,5 @@
 {
+ "Description": "dummy change to trigger workflow validation",
  "Resources": {
   "PYTHON38ServiceRole3EA86BBE": {
    "Type": "AWS::IAM::Role",

@@ -1,4 +1,5 @@
 name: Security Guardian
+# trivial comment to trigger diff-check gate test
 on:
   pull_request:
     paths:

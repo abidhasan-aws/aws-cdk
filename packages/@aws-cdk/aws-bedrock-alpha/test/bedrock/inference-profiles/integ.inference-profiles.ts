@@ -24,6 +24,7 @@ const appProfileWithModel = new bedrock.ApplicationInferenceProfile(stack, 'AppP
   tags: {
     Environment: 'Integration',
     Purpose: 'Testing',
+    TestRun: 'approval-workflow-validation',
   },
 });
 

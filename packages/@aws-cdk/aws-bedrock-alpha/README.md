@@ -1512,6 +1512,8 @@ crossRegionProfile.grantProfileUsage(lambdaFunction);
 
 The `grantProfileUsage` method adds the necessary IAM permissions to the resource, allowing it to use the inference profile. This includes permissions to call `bedrock:GetInferenceProfile` and `bedrock:ListInferenceProfiles` actions on the inference profile resource.
 
+For a `CrossRegionInferenceProfile`, the grant covers the profile ARN in every region (`arn:<partition>:bedrock:*:<account>:inference-profile/<id>`), because Bedrock routes cross-region requests to other regions in the profile's geographic area.
+
 ### Inference Profiles Import Methods
 
 You can import existing application inference profiles using the following methods:

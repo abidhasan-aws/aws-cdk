@@ -157,6 +157,11 @@ export class CrossRegionInferenceProfile implements IBedrockInvokable, IInferenc
 
   /**
    * The ARN of the inference profile.
+   *
+   * This ARN is scoped to the stack's region. A cross-region inference profile
+   * routes requests to other regions of its geographic area, so for IAM
+   * permissions use `grantProfileUsage()` or `grantInvoke()`, which cover the
+   * profile in all regions.
    * @attribute
    */
   public readonly inferenceProfileArn: string;

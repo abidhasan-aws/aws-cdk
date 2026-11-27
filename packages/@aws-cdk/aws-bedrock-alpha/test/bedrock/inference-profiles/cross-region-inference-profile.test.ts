@@ -150,6 +150,39 @@ describe('CrossRegionInferenceProfile', () => {
     });
   });
 
+  test('grantProfileUsage grants access to the inference profile in all regions', () => {
+    const profile = bedrockAlpha.CrossRegionInferenceProfile.fromConfig({
+      geoRegion: bedrockAlpha.CrossRegionInferenceProfileRegion.EU,
+      model: bedrockAlpha.BedrockFoundationModel.ANTHROPIC_CLAUDE_3_5_SONNET_V1_0,
+    });
+
+    const role = new iam.Role(stack, 'TestRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+
+    profile.grantProfileUsage(role);
+
+    Template.fromStack(stack).hasResourceProperties('AWS::IAM::Policy', {
+      PolicyDocument: {
+        Statement: [
+          {
+            Action: ['bedrock:GetInferenceProfile', 'bedrock:InvokeModel*'],
+            Effect: 'Allow',
+            Resource: {
+              'Fn::Join': ['', [
+                'arn:',
+                { Ref: 'AWS::Partition' },
+                ':bedrock:*:',
+                { Ref: 'AWS::AccountId' },
+                `:inference-profile/eu.${bedrockAlpha.BedrockFoundationModel.ANTHROPIC_CLAUDE_3_5_SONNET_V1_0.modelId}`,
+              ]],
+            },
+          },
+        ],
+      },
+    });
+  });
+
   describe('region mapping', () => {
     test('REGION_TO_GEO_AREA contains correct mappings', () => {
       expect(bedrockAlpha.REGION_TO_GEO_AREA['us-east-1']).toBe(bedrockAlpha.CrossRegionInferenceProfileRegion.US);

@@ -232,6 +232,10 @@ export class CrossRegionInferenceProfile implements IBedrockInvokable, IInferenc
    * - Get inference profile details (bedrock:GetInferenceProfile)
    * - Invoke the model through the inference profile (bedrock:InvokeModel*)
    *
+   * The permissions apply to the inference profile in all regions, because a
+   * cross-region inference profile routes requests to other regions of its
+   * geographic area.
+   *
    * Note: This does not grant permissions to use the underlying model directly.
    * For comprehensive permissions, use grantInvoke() instead.
    * [disable-awslint:no-grants]
@@ -240,10 +244,22 @@ export class CrossRegionInferenceProfile implements IBedrockInvokable, IInferenc
    * @returns An IAM Grant object representing the granted permissions
    */
   public grantProfileUsage(grantee: IGrantable): Grant {
+    // The destination region is chosen at request time, so the profile ARN
+    // must match in every region the profile may route to.
+    const allRegionsProfileArn = Arn.format({
+      partition: Aws.PARTITION,
+      service: 'bedrock',
+      account: Aws.ACCOUNT_ID,
+      region: '*',
+      resource: 'inference-profile',
+      resourceName: this.inferenceProfileId,
+      arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+    });
+
     return Grant.addToPrincipal({
       grantee: grantee,
       actions: ['bedrock:GetInferenceProfile', 'bedrock:InvokeModel*'],
-      resourceArns: [this.inferenceProfileArn],
+      resourceArns: [allRegionsProfileArn],
     });
   }
 }

@@ -350,6 +350,9 @@ export abstract class TableBaseV2 extends Resource implements ITableV2, IResourc
    *
    * By default, the metric will be calculated as an average over a period of 5 minutes.
    * You can customize this by using the `statistic` and `period` properties.
+   *
+   * The `Operation` dimension must be passed in `dimensionsMap`. To pass the
+   * operation directly, use `metricSuccessfulRequestLatencyForOperation` instead.
    */
   public metricSuccessfulRequestLatency(props?: MetricOptions): Metric {
     if (!props?.dimensions?.Operation && !props?.dimensionsMap?.Operation) {
@@ -359,6 +362,29 @@ export abstract class TableBaseV2 extends Resource implements ITableV2, IResourc
     const dimensionsMap = {
       TableName: this.tableName,
       Operation: props.dimensionsMap?.Operation ?? props.dimensions?.Operation,
+    };
+
+    const metricProps: MetricProps = {
+      ...DynamoDBMetrics.successfulRequestLatencyAverage(dimensionsMap),
+      ...props,
+      dimensionsMap,
+    };
+    return this.configureMetric(metricProps);
+  }
+
+  /**
+   * Metric for the successful request latency for this table, for the given operation.
+   *
+   * By default, the metric will be calculated as an average over a period of 5 minutes.
+   * You can customize this by using the `statistic` and `period` properties.
+   *
+   * @param operation the operation to measure, for example `Operation.GET_ITEM`
+   * @param props properties of the metric
+   */
+  public metricSuccessfulRequestLatencyForOperation(operation: string, props?: MetricOptions): Metric {
+    const dimensionsMap = {
+      TableName: this.tableName,
+      Operation: operation,
     };
 
     const metricProps: MetricProps = {

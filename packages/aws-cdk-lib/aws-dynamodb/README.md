@@ -1186,6 +1186,22 @@ new cloudwatch.Alarm(this, 'Alarm', {
 });
 ```
 
+The `SuccessfulRequestLatency` metric is reported per operation. Use `metricSuccessfulRequestLatencyForOperation` to generate it for one operation:
+
+```ts
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+
+declare const table: dynamodb.TableV2;
+
+const latency = table.metricSuccessfulRequestLatencyForOperation(dynamodb.Operation.GET_ITEM);
+
+new cloudwatch.Alarm(this, 'LatencyAlarm', {
+  metric: latency,
+  evaluationPeriods: 1,
+  threshold: 100,
+});
+```
+
 The `replica` method can be used to generate a metric for a specific replica table:
 
 ```ts

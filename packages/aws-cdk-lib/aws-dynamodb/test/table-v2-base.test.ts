@@ -1,12 +1,12 @@
 import { testDeprecated } from '@aws-cdk/cdk-build-tools';
 import type { Construct } from 'constructs';
-import { Template } from '../../assertions';
+import { Match, Template } from '../../assertions';
 import type { Metric } from '../../aws-cloudwatch';
 import { Alarm } from '../../aws-cloudwatch';
 import { User } from '../../aws-iam';
 import { Key } from '../../aws-kms';
 import type { StackProps } from '../../core';
-import { Stack, App } from '../../core';
+import { Duration, Stack, App } from '../../core';
 import type { ITable, ITableV2 } from '../lib';
 import { TableV2, AttributeType, TableEncryptionV2, Operation } from '../lib';
 
@@ -1721,6 +1721,71 @@ describe('metrics', () => {
       statistic: 'Average',
       account: { Ref: 'AWS::AccountId' },
       region: { Ref: 'AWS::Region' },
+    });
+  });
+
+  test('can use metricSuccessfulRequestLatencyForOperation on a table', () => {
+    // GIVEN
+    const stack = new Stack(undefined, 'Stack');
+    const table = new TableV2(stack, 'Table', {
+      partitionKey: { name: 'pk', type: AttributeType.STRING },
+    });
+
+    // WHEN / THEN
+    expect(stack.resolve(table.metricSuccessfulRequestLatencyForOperation(Operation.GET_ITEM))).toEqual({
+      period: {
+        amount: 5,
+        unit: { label: 'minutes', isoLabel: 'M', inMillis: 60000 },
+      },
+      dimensions: { TableName: { Ref: 'TableCD117FA1' }, Operation: 'GetItem' },
+      namespace: 'AWS/DynamoDB',
+      metricName: 'SuccessfulRequestLatency',
+      statistic: 'Average',
+      account: { Ref: 'AWS::AccountId' },
+      region: { Ref: 'AWS::Region' },
+    });
+  });
+
+  test('metricSuccessfulRequestLatencyForOperation accepts metric options', () => {
+    // GIVEN
+    const stack = new Stack(undefined, 'Stack');
+    const table = new TableV2(stack, 'Table', {
+      partitionKey: { name: 'pk', type: AttributeType.STRING },
+    });
+
+    // WHEN
+    const metric = table.metricSuccessfulRequestLatencyForOperation(Operation.PUT_ITEM, {
+      statistic: 'p99',
+      period: Duration.minutes(1),
+    });
+
+    // THEN
+    expect(metric.statistic).toEqual('p99');
+    expect(metric.period.toMinutes()).toEqual(1);
+    expect(stack.resolve(metric.dimensions)).toEqual({ TableName: { Ref: 'TableCD117FA1' }, Operation: 'PutItem' });
+  });
+
+  test('can create an alarm from metricSuccessfulRequestLatencyForOperation', () => {
+    // GIVEN
+    const stack = new Stack(undefined, 'Stack');
+    const table = new TableV2(stack, 'Table', {
+      partitionKey: { name: 'pk', type: AttributeType.STRING },
+    });
+
+    // WHEN
+    table.metricSuccessfulRequestLatencyForOperation(Operation.QUERY).createAlarm(stack, 'Alarm', {
+      threshold: 100,
+      evaluationPeriods: 1,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::CloudWatch::Alarm', {
+      MetricName: 'SuccessfulRequestLatency',
+      Namespace: 'AWS/DynamoDB',
+      Dimensions: Match.arrayWith([
+        { Name: 'Operation', Value: 'Query' },
+        { Name: 'TableName', Value: { Ref: 'TableCD117FA1' } },
+      ]),
     });
   });
 

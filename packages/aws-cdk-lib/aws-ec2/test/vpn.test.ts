@@ -1,5 +1,5 @@
 import { testDeprecated } from '@aws-cdk/cdk-build-tools';
-import { Template } from '../../assertions';
+import { Match, Template } from '../../assertions';
 import { Duration, SecretValue, Stack, Token } from '../../core';
 import { PublicSubnet, Vpc, VpnConnection } from '../lib';
 
@@ -34,6 +34,28 @@ describe('vpn', () => {
         Ref: 'VpcNetworkVpnGateway501295FA',
       },
       StaticRoutesOnly: false,
+    });
+  });
+
+  test('does not use the customer gateway asn as the amazon side asn of the vpn gateway it creates', () => {
+    // GIVEN
+    const stack = new Stack();
+    const vpc = new Vpc(stack, 'VpcNetwork');
+
+    // WHEN
+    new VpnConnection(stack, 'VpnConnection', {
+      vpc,
+      ip: '192.0.2.1',
+      asn: 65001,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::EC2::CustomerGateway', {
+      BgpAsn: 65001,
+    });
+    Template.fromStack(stack).hasResourceProperties('AWS::EC2::VPNGateway', {
+      Type: 'ipsec.1',
+      AmazonSideAsn: Match.absent(),
     });
   });
 

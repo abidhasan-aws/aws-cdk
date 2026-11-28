@@ -125,7 +125,7 @@ export interface VpnGatewayProps {
 
   /**
    * Explicitly specify an Asn or let aws pick an Asn for you.
-   * @default 65000
+   * @default - Amazon default ASN
    */
   readonly amazonSideAsn?: number;
 }
@@ -312,7 +312,6 @@ export class VpnConnection extends VpnConnectionBase {
     if (!props.vpc.vpnGatewayId) {
       props.vpc.enableVpnGateway({
         type: 'ipsec.1',
-        amazonSideAsn: props.asn,
       });
     }
 

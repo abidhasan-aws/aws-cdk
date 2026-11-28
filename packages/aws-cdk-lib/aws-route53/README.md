@@ -485,6 +485,25 @@ new route53.CrossAccountZoneDelegationRecord(this, 'delegate', {
 });
 ```
 
+If the trust policy of the delegation role requires an `sts:ExternalId` condition,
+specify `assumeRoleExternalId`. The custom resource passes it as the external ID when
+it assumes the role. By default, no external ID is passed:
+
+```ts
+const subZone = new route53.PublicHostedZone(this, 'SubZone', {
+  zoneName: 'sub.someexample.com',
+});
+
+declare const delegationRole: iam.IRole;
+
+new route53.CrossAccountZoneDelegationRecord(this, 'delegate', {
+  delegatedZone: subZone,
+  parentHostedZoneName: 'someexample.com', // or you can use parentHostedZoneId
+  delegationRole,
+  assumeRoleExternalId: 'my-external-id',
+});
+```
+
 ### Add Trailing Dot to Domain Names
 
 In order to continue managing existing domain names with trailing dots using CDK, you can set `addTrailingDot: false` to prevent the Construct from adding a dot at the end of the domain name.

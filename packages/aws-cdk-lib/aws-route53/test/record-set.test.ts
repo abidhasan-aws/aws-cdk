@@ -1,5 +1,5 @@
 import { testDeprecated } from '@aws-cdk/cdk-build-tools';
-import { Annotations, Template } from '../../assertions';
+import { Annotations, Match, Template } from '../../assertions';
 import * as cloudfront from '../../aws-cloudfront';
 import * as origins from '../../aws-cloudfront-origins';
 import * as iam from '../../aws-iam';
@@ -1024,6 +1024,55 @@ describe('record set', () => {
     Template.fromStack(stack).hasResource('Custom::CrossAccountZoneDelegation', {
       DeletionPolicy: 'Retain',
       UpdateReplacePolicy: 'Retain',
+    });
+  });
+
+  test('Cross account zone delegation record with assumeRoleExternalId', () => {
+    // GIVEN
+    const stack = new Stack();
+    const parentZone = new route53.PublicHostedZone(stack, 'ParentHostedZone', {
+      zoneName: 'myzone.com',
+      crossAccountZoneDelegationPrincipal: new iam.AccountPrincipal('123456789012'),
+    });
+
+    // WHEN
+    const childZone = new route53.PublicHostedZone(stack, 'ChildHostedZone', {
+      zoneName: 'sub.myzone.com',
+    });
+    new route53.CrossAccountZoneDelegationRecord(stack, 'Delegation', {
+      delegatedZone: childZone,
+      parentHostedZoneId: parentZone.hostedZoneId,
+      delegationRole: parentZone.crossAccountZoneDelegationRole!,
+      assumeRoleExternalId: 'my-external-id',
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('Custom::CrossAccountZoneDelegation', {
+      AssumeRoleExternalId: 'my-external-id',
+    });
+  });
+
+  test('Cross account zone delegation record without assumeRoleExternalId', () => {
+    // GIVEN
+    const stack = new Stack();
+    const parentZone = new route53.PublicHostedZone(stack, 'ParentHostedZone', {
+      zoneName: 'myzone.com',
+      crossAccountZoneDelegationPrincipal: new iam.AccountPrincipal('123456789012'),
+    });
+
+    // WHEN
+    const childZone = new route53.PublicHostedZone(stack, 'ChildHostedZone', {
+      zoneName: 'sub.myzone.com',
+    });
+    new route53.CrossAccountZoneDelegationRecord(stack, 'Delegation', {
+      delegatedZone: childZone,
+      parentHostedZoneId: parentZone.hostedZoneId,
+      delegationRole: parentZone.crossAccountZoneDelegationRole!,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('Custom::CrossAccountZoneDelegation', {
+      AssumeRoleExternalId: Match.absent(),
     });
   });
 

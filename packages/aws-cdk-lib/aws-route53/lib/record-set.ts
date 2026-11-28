@@ -1392,6 +1392,16 @@ export interface CrossAccountZoneDelegationRecordProps {
    * @default - the Route53 signing region in the current partition
    */
   readonly assumeRoleRegion?: string;
+
+  /**
+   * The external ID to pass when assuming the delegation role.
+   *
+   * Use this when the trust policy of the delegation role in the parent account
+   * requires an `sts:ExternalId` condition.
+   *
+   * @default - no external ID is passed
+   */
+  readonly assumeRoleExternalId?: string;
 }
 
 /**
@@ -1435,6 +1445,7 @@ export class CrossAccountZoneDelegationRecord extends Construct {
         DelegatedZoneNameServers: props.delegatedZone.hostedZoneNameServers!,
         TTL: (props.ttl || Duration.days(2)).toSeconds(),
         AssumeRoleRegion: props.assumeRoleRegion,
+        AssumeRoleExternalId: props.assumeRoleExternalId,
       },
     });
 

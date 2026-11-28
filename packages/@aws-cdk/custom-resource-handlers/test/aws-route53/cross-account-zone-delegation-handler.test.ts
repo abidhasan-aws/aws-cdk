@@ -1,6 +1,8 @@
 import type { CrossAccountZoneDelegationEvent } from '../../lib/aws-route53/cross-account-zone-delegation-handler/index';
 import { handler } from '../../lib/aws-route53/cross-account-zone-delegation-handler/index';
 
+const mockFromTemporaryCredentials = jest.fn();
+
 const mockAssumeRole = jest.fn();
 const mockChangeResourceRecordSets = jest.fn();
 const mockListHostedZonesByName = jest.fn();
@@ -30,7 +32,14 @@ jest.mock('@aws-sdk/client-route-53', () => {
   };
 });
 
+jest.mock('@aws-sdk/credential-providers', () => {
+  return {
+    fromTemporaryCredentials: (...args: any[]) => mockFromTemporaryCredentials(...args),
+  };
+});
+
 beforeEach(() => {
+  mockFromTemporaryCredentials.mockClear();
   mockStsClient.assumeRole.mockClear();
   mockRoute53Client.changeResourceRecordSets.mockClear();
   mockRoute53Client.listHostedZonesByName.mockClear();
@@ -170,6 +179,37 @@ test('throws if more than one HostedZones are returned for the provided ParentHo
   await expect(invokeHandler(event)).rejects.toThrow(/Expected one hosted zone to match the given name but found 2/);
   expect(mockRoute53Client.listHostedZonesByName).toHaveBeenCalledTimes(1);
   expect(mockRoute53Client.listHostedZonesByName).toHaveBeenCalledWith({ DNSName: parentZoneName });
+});
+
+test('passes the external ID when assuming the role if AssumeRoleExternalId is provided', async () => {
+  // GIVEN
+  mockRoute53Client.changeResourceRecordSets.mockResolvedValueOnce({});
+
+  // WHEN
+  const event = getCfnEvent({}, { AssumeRoleExternalId: 'my-external-id' });
+  await invokeHandler(event);
+
+  // THEN
+  expect(mockFromTemporaryCredentials).toHaveBeenCalledTimes(1);
+  expect(mockFromTemporaryCredentials).toHaveBeenCalledWith(expect.objectContaining({
+    params: expect.objectContaining({
+      RoleArn: 'roleArn',
+      ExternalId: 'my-external-id',
+    }),
+  }));
+});
+
+test('does not pass an external ID when assuming the role by default', async () => {
+  // GIVEN
+  mockRoute53Client.changeResourceRecordSets.mockResolvedValueOnce({});
+
+  // WHEN
+  const event = getCfnEvent();
+  await invokeHandler(event);
+
+  // THEN
+  expect(mockFromTemporaryCredentials).toHaveBeenCalledTimes(1);
+  expect(mockFromTemporaryCredentials.mock.calls[0][0].params).not.toHaveProperty('ExternalId');
 });
 
 function getCfnEvent(

@@ -437,7 +437,7 @@ describe('AwsApiCall', () => {
               Statement: [
                 {
                   Action: [
-                    'lambda:Invoke',
+                    'lambda:InvokeFunction',
                   ],
                   Effect: 'Allow',
                   Resource: [

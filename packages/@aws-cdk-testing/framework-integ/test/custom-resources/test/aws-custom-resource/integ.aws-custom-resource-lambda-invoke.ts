@@ -23,7 +23,7 @@ const fn = new lambda.Function(stack, 'Function', {
   runtime: lambda.Runtime.NODEJS_20_X,
 });
 
-const invoke = new cr.AwsCustomResource(stack, 'InvokeFunction', {
+new cr.AwsCustomResource(stack, 'InvokeFunction', {
   onUpdate: {
     service: 'Lambda',
     action: 'InvokeCommand',
@@ -35,10 +35,6 @@ const invoke = new cr.AwsCustomResource(stack, 'InvokeFunction', {
   policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
     resources: [fn.functionArn],
   }),
-});
-
-new cdk.CfnOutput(stack, 'FunctionStatusCode', {
-  value: invoke.getResponseField('StatusCode'),
 });
 
 new IntegTest(app, 'AwsCustomResourceLambdaInvokeInteg', {

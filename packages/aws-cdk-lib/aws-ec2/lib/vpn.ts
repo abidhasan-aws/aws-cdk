@@ -125,7 +125,7 @@ export interface VpnGatewayProps {
 
   /**
    * Explicitly specify an Asn or let aws pick an Asn for you.
-   * @default - Amazon default ASN
+   * @default - AWS assigns the default Amazon side ASN, 64512
    */
   readonly amazonSideAsn?: number;
 }

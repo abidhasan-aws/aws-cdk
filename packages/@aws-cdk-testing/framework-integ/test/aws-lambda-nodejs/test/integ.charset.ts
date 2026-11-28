@@ -35,4 +35,3 @@ new IntegTest(app, 'LambdaNodeJsCharsetInteg', {
   testCases: [stack],
   diffAssets: true,
 });
-app.synth();

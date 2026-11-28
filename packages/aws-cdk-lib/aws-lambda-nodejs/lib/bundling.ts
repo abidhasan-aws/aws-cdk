@@ -292,6 +292,7 @@ export class Bundling implements cdk.BundlingOptions {
       ...this.props.metafile ? [`--metafile=${pathJoin(outputDir, 'index.meta.json')}`] : [],
       ...this.props.banner ? [`--banner:js=${this.props.banner}`] : [],
       ...this.props.footer ? [`--footer:js=${this.props.footer}`] : [],
+      ...this.props.charset ? [`--charset=${this.props.charset}`] : [],
       ...this.props.mainFields ? [`--main-fields=${this.props.mainFields.join(',')}`] : [],
       ...this.props.inject ? this.props.inject.map(i => `--inject:${i}`) : [],
     ];

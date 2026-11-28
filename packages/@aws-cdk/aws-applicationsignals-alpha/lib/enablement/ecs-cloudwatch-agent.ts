@@ -163,7 +163,8 @@ export class CloudWatchAgentIntegration extends Construct {
       logging: props.enableLogging? new ecs.AwsLogDriver({
         streamPrefix: props.containerName,
       }): undefined,
-      user: '0:1338',
+      // ECS accepts a uid:gid user only on Linux; Windows containers fail to start with it.
+      user: props.operatingSystemFamily?.isWindows() ? undefined : '0:1338',
       portMappings: props.portMappings,
       environment: {
         CW_CONFIG_CONTENT: props.agentConfig ? props.agentConfig: JSON.stringify(CloudWatchAgentIntegration.DEFAULT_CONFIG),

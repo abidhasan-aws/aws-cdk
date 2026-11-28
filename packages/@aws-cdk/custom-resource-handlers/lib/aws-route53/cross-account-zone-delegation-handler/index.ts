@@ -16,6 +16,7 @@ interface ResourceProperties {
   DelegatedZoneNameServers: string[];
   TTL: number;
   AssumeRoleRegion?: string;
+  AssumeRoleExternalId?: string;
 }
 
 export async function handler(event: CrossAccountZoneDelegationEvent) {
@@ -38,7 +39,9 @@ async function cfnUpdateEventHandler(props: ResourceProperties, oldProps: Resour
 }
 
 async function cfnEventHandler(props: ResourceProperties, isDeleteEvent: boolean) {
-  const { AssumeRoleArn, ParentZoneId, ParentZoneName, DelegatedZoneName, DelegatedZoneNameServers, TTL, AssumeRoleRegion } = props;
+  const {
+    AssumeRoleArn, ParentZoneId, ParentZoneName, DelegatedZoneName, DelegatedZoneNameServers, TTL, AssumeRoleRegion, AssumeRoleExternalId,
+  } = props;
 
   if (!ParentZoneId && !ParentZoneName) {
     throw Error('One of ParentZoneId or ParentZoneName must be specified');
@@ -53,6 +56,7 @@ async function cfnEventHandler(props: ResourceProperties, isDeleteEvent: boolean
       params: {
         RoleArn: AssumeRoleArn,
         RoleSessionName: `cross-account-zone-delegation-${timestamp}`,
+        ...(AssumeRoleExternalId ? { ExternalId: AssumeRoleExternalId } : {}),
       },
     }),
   });

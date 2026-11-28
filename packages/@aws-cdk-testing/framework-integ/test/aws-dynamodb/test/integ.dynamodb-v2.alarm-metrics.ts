@@ -42,5 +42,3 @@ integ.assertions.awsApiCall('CloudWatch', 'describeAlarms', {
     Statistic: 'Average',
   }],
 }));
-
-app.synth();

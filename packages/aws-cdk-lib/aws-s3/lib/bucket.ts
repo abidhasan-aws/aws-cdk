@@ -2675,7 +2675,7 @@ export class Bucket extends BucketBase {
   public addLifecycleRule(rule: LifecycleRule) {
     this.lifecycleRules.push(rule);
 
-    if ((rule.objectSizeLessThan !== undefined || rule.objectSizeLessThan !== undefined) && !this._suppressedTypeCheck) {
+    if ((rule.objectSizeLessThan !== undefined || rule.objectSizeGreaterThan !== undefined) && !this._suppressedTypeCheck) {
       // These are typed as numbers by CDK, but as strings by CloudFormation. The validation plugin is going to complain
       // about the type mismatch, so suppress the warning for this construct if it's applicable.
       Validations.of(this).acknowledge({

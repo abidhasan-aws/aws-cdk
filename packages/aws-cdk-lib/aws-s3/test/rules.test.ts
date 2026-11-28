@@ -1,5 +1,5 @@
 import { Template } from '../../assertions';
-import { Duration, Stack } from '../../core';
+import { Duration, Stack, Validations } from '../../core';
 import { Bucket, StorageClass } from '../lib';
 
 describe('rules', () => {
@@ -530,6 +530,50 @@ describe('rules', () => {
       expect(() => {
         Template.fromStack(stack);
       }).not.toThrow();
+    });
+  });
+
+  describe('acknowledges the CloudFormation type check for object size filters', () => {
+    test.each([
+      ['objectSizeLessThan', { objectSizeLessThan: 1024 * 1024 }],
+      ['objectSizeGreaterThan', { objectSizeGreaterThan: 1024 * 1024 }],
+      ['both', { objectSizeLessThan: 2048, objectSizeGreaterThan: 1024 }],
+    ])('with %s', (_name, sizes) => {
+      // GIVEN
+      const stack = new Stack();
+
+      // WHEN
+      const bucket = new Bucket(stack, 'Bucket', {
+        lifecycleRules: [{
+          transitions: [{
+            storageClass: StorageClass.INTELLIGENT_TIERING,
+            transitionAfter: Duration.days(3),
+          }],
+          ...sizes,
+        }],
+      });
+
+      // THEN
+      const acknowledged = bucket.node.metadata
+        .filter(m => m.type === Validations.ACKNOWLEDGED_RULES_METADATA_KEY)
+        .map(m => Object.keys(m.data));
+      expect(acknowledged).toEqual([['CloudFormation-Validate::W9003']]);
+    });
+
+    test('not without object size filters', () => {
+      // GIVEN
+      const stack = new Stack();
+
+      // WHEN
+      const bucket = new Bucket(stack, 'Bucket', {
+        lifecycleRules: [{ expiration: Duration.days(30) }],
+      });
+
+      // THEN
+      const acknowledged = bucket.node.metadata
+        .filter(m => m.type === Validations.ACKNOWLEDGED_RULES_METADATA_KEY)
+        .map(m => Object.keys(m.data));
+      expect(acknowledged).not.toContainEqual(['CloudFormation-Validate::W9003']);
     });
   });
 });

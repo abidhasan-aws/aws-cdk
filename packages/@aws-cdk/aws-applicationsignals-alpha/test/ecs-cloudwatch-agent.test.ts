@@ -1,6 +1,6 @@
 
 import { Stack } from 'aws-cdk-lib';
-import { Template } from 'aws-cdk-lib/assertions';
+import { Match, Template } from 'aws-cdk-lib/assertions';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import { CloudWatchAgentIntegration } from '../lib';
 
@@ -233,7 +233,7 @@ describe('application signals cloudwatch agent integration', () => {
             Essential: true,
             Image: test.expectedImage,
             Name: 'cloudwatch-agent',
-            User: '0:1338',
+            User: Match.absent(),
             Cpu: 1024,
             Memory: 2048,
           },

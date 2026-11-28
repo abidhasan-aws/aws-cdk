@@ -1,4 +1,4 @@
-import { Match, Template } from '../../assertions';
+import { Annotations, Match, Template } from '../../assertions';
 import { Role, ServicePrincipal } from '../../aws-iam';
 import { CfnApp } from '../../aws-pinpoint';
 import { Stack, Duration } from '../../core';
@@ -538,6 +538,51 @@ describe('User Pool Client', () => {
       AllowedOAuthFlows: ['code'],
       CallbackURLs: ['https://example.com'],
     });
+  });
+
+  test('warns when the default callbackUrls placeholder is used', () => {
+    // GIVEN
+    const stack = new Stack();
+    const pool = new UserPool(stack, 'Pool');
+
+    // WHEN
+    pool.addClient('Client', {
+      oAuth: {
+        flows: {
+          authorizationCodeGrant: true,
+        },
+      },
+    });
+
+    // THEN
+    Annotations.fromStack(stack).hasWarning('/Default/Pool/Client',
+      Match.stringLikeRegexp('oAuth.callbackUrls is not set.*\\[ack: @aws-cdk/aws-cognito:defaultCallbackUrl\\]'));
+  });
+
+  test('does not warn when callbackUrls are set, no code grant flow is enabled or OAuth is disabled', () => {
+    // GIVEN
+    const stack = new Stack();
+    const pool = new UserPool(stack, 'Pool');
+
+    // WHEN
+    pool.addClient('Client1', {
+      oAuth: {
+        callbackUrls: ['https://my-app.com/callback'],
+      },
+    });
+    pool.addClient('Client2', {
+      oAuth: {
+        flows: {
+          clientCredentials: true,
+        },
+      },
+    });
+    pool.addClient('Client3', {
+      disableOAuth: true,
+    });
+
+    // THEN
+    Annotations.fromStack(stack).hasNoWarning('*', Match.stringLikeRegexp('oAuth.callbackUrls is not set'));
   });
 
   test('callbackUrls are not rendered if OAuth is disabled ', () => {

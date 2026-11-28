@@ -54,6 +54,10 @@ export function evaluateCFN(object: any, context: {[key: string]: string} = {}):
         throw new Error(`Unknown placeholder in Fn::Sub: ${key}`);
       });
     },
+
+    'Fn::Base64'(value: any) {
+      return Buffer.from(evaluate(value)).toString('base64');
+    },
   };
 
   return evaluate(object);

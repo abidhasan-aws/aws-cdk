@@ -432,6 +432,12 @@ function deepQuoteStringLiterals(x: any): any {
     return x.map(deepQuoteStringLiterals);
   }
   if (typeof x === 'object' && x != null) {
+    // Fn::Base64 output only holds characters from the base64 alphabet, which never need
+    // quoting. Quoting its input would change the encoded value instead.
+    const keys = Object.keys(x);
+    if (keys.length === 1 && keys[0] === 'Fn::Base64') {
+      return x;
+    }
     const ret: any = {};
     for (const [key, value] of Object.entries(x)) {
       ret[deepQuoteStringLiterals(key)] = deepQuoteStringLiterals(value);

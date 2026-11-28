@@ -1664,3 +1664,38 @@ describe('logging configuration', () => {
     });
   });
 });
+
+test.each([
+  ['Lambda', 'InvokeCommand'],
+  ['Lambda', 'invoke'],
+  ['Lambda', 'Invoke'],
+  ['@aws-sdk/client-lambda', 'InvokeCommand'],
+])('fromSdkCalls maps %s %s to lambda:InvokeFunction', (service, action) => {
+  // GIVEN
+  const stack = new cdk.Stack();
+
+  // WHEN
+  new AwsCustomResource(stack, 'AwsSdk', {
+    onCreate: {
+      service,
+      action,
+      parameters: { FunctionName: 'my-function' },
+      physicalResourceId: PhysicalResourceId.of('id'),
+    },
+    policy: AwsCustomResourcePolicy.fromSdkCalls({ resources: AwsCustomResourcePolicy.ANY_RESOURCE }),
+  });
+
+  // THEN
+  Template.fromStack(stack).hasResourceProperties('AWS::IAM::Policy', {
+    'PolicyDocument': {
+      'Statement': [
+        {
+          'Action': 'lambda:InvokeFunction',
+          'Effect': 'Allow',
+          'Resource': '*',
+        },
+      ],
+      'Version': '2012-10-17',
+    },
+  });
+});

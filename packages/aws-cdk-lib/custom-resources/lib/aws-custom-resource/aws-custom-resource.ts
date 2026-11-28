@@ -269,9 +269,9 @@ export class AwsCustomResourcePolicy {
    * This policy generator assumes the IAM policy name has the same name as the API
    * call. This is true in 99% of cases, but there are exceptions (for example,
    * S3's `PutBucketLifecycleConfiguration` requires
-   * `s3:PutLifecycleConfiguration` permissions, Lambda's `Invoke` requires
-   * `lambda:InvokeFunction` permissions). Use `fromStatements` if you want to
-   * do a call that requires different IAM action names.
+   * `s3:PutLifecycleConfiguration` permissions). Use `fromStatements` if you want to
+   * do a call that requires different IAM action names. Lambda's `Invoke` is
+   * mapped to `lambda:InvokeFunction` automatically.
    *
    * @param options options for the policy generation
    */

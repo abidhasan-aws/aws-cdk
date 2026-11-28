@@ -421,5 +421,5 @@ test('fails to associate with parent with JSONata text input in a JSONPath state
     input: sfn.TaskInput.fromText('{% { "foo": "bar" } %}'),
   });
 
-  expect(() => task.toStateJson()).toThrow('Could not enable `associateWithParent` because `input` is taken directly from a JSON path. Use `sfn.TaskInput.fromObject` instead.');
+  expect(() => task.toStateJson()).toThrow('a JSONata `input` from `sfn.TaskInput.fromText` with `associateWithParent` requires the state to use `QueryLanguage.JSONATA`');
 });

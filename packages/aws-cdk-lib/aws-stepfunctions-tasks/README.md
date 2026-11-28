@@ -2088,7 +2088,7 @@ This will add the payload `AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$: $$.Exec
 `input`property for you, which will pass the execution ID from the context object to the
 execution input. It requires `input` to be an object or not be set at all. In a JSONata state,
 `input` can also be a JSONata expression from `sfn.TaskInput.fromText`, which is merged with the
-execution ID using `$merge`.
+execution ID using `$merge`. The expression must evaluate to an object, or `$merge` fails at run time.
 
 ```ts
 declare const child: sfn.StateMachine;

@@ -37,9 +37,11 @@ const startExecutionCall = integTest.assertions.awsApiCall('StepFunctions', 'sta
 
 integTest.assertions.awsApiCall('StepFunctions', 'describeExecution', {
   executionArn: startExecutionCall.getAttString('executionArn'),
-  includedData: 'METADATA_ONLY',
 })
   .expect(integ.ExpectedResult.objectLike({
     status: 'SUCCEEDED',
+    // The parent's output holds the child execution, whose input must carry both
+    // the user's expression result and the merged parent execution ID
+    output: integ.Match.stringLikeRegexp('extra[^,]*value.*AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID'),
   }))
   .waitForAssertions();

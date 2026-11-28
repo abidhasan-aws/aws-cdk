@@ -36,7 +36,7 @@ interface StepFunctionsStartExecutionOptions {
    * This allows the Step Functions UI to link child executions from parent executions, making it easier to trace execution flow across state machines.
    *
    * If you set this property to `true`, the `input` property must be an object (provided by `sfn.TaskInput.fromObject`),
-   * a JSONata expression (provided by `sfn.TaskInput.fromText`) when the state uses JSONata, or omitted entirely.
+   * a JSONata expression that evaluates to an object (provided by `sfn.TaskInput.fromText`) when the state uses JSONata, or omitted entirely.
    *
    * @see https://docs.aws.amazon.com/step-functions/latest/dg/concepts-nested-workflows.html#nested-execution-startid
    *
@@ -133,7 +133,7 @@ export class StepFunctionsStartExecution extends sfn.TaskStateBase {
       };
       if (this.props.input && this.isJsonataTextInput()) {
         if (queryLanguage !== sfn.QueryLanguage.JSONATA) {
-          throw new ValidationError(lit`CouldEnableBecauseTaken`, 'Could not enable `associateWithParent` because `input` is taken directly from a JSON path. Use `sfn.TaskInput.fromObject` instead.', this);
+          throw new ValidationError(lit`AssociateWithParentJsonataTextInput`, 'a JSONata `input` from `sfn.TaskInput.fromText` with `associateWithParent` requires the state to use `QueryLanguage.JSONATA`', this);
         }
         // A JSONata expression cannot be spread, so the execution ID is merged in at run time
         const expression = this.props.input.value.slice(2, -2).trim();

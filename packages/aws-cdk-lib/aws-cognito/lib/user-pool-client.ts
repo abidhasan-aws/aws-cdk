@@ -5,7 +5,7 @@ import type { IUserPoolResourceServer, ResourceServerScope } from './user-pool-r
 import type { IRoleRef } from '../../aws-iam';
 import type { CfnApp } from '../../aws-pinpoint';
 import type { IResource } from '../../core';
-import { Resource, Duration, Stack, SecretValue, Token, FeatureFlags } from '../../core';
+import { Annotations, Resource, Duration, Stack, SecretValue, Token, FeatureFlags } from '../../core';
 import { toIUserPool } from './private/ref-utils';
 import { UnscopedValidationError, ValidationError } from '../../core/lib/errors';
 import { addConstructMetadata } from '../../core/lib/metadata-resource';
@@ -65,6 +65,9 @@ export interface OAuthSettings {
 
   /**
    * List of allowed redirect URLs for the identity providers.
+   * Set this whenever the authorizationCodeGrant or implicitCodeGrant flow is enabled: the
+   * default is a placeholder, not a usable redirect URL, and a warning is emitted when it is used.
+   *
    * @default - ['https://example.com'] if either authorizationCodeGrant or implicitCodeGrant flows are enabled, no callback URLs otherwise.
    */
   readonly callbackUrls?: string[];
@@ -514,7 +517,11 @@ export class UserPoolClient extends Resource implements IUserPoolClient {
     let callbackUrls: string[] | undefined = props.oAuth?.callbackUrls;
     if (this.oAuthFlows.authorizationCodeGrant || this.oAuthFlows.implicitCodeGrant) {
       if (callbackUrls === undefined) {
+        // The placeholder keeps existing templates unchanged, but it is never a real redirect
+        // target, so tell the user to set their own.
         callbackUrls = ['https://example.com'];
+        Annotations.of(this).addWarningV2('@aws-cdk/aws-cognito:defaultCallbackUrl',
+          'oAuth.callbackUrls is not set while the authorizationCodeGrant or implicitCodeGrant OAuth flow is enabled, so the placeholder \'https://example.com\' is used as the callback URL. Set oAuth.callbackUrls to the URLs of your application, or disable these flows.');
       } else if (callbackUrls.length === 0) {
         throw new ValidationError(lit`CallbackUrlEmptyCodeGrant`, 'callbackUrl must not be empty when codeGrant or implicitGrant OAuth flows are enabled.', this);
       }

@@ -550,6 +550,36 @@ new rds.DatabaseCluster(this, 'DatabaseCluster', {
 
 **Note**: Cannot create a read replica cluster with `credentials` as the value is inherited from the source DB cluster.
 
+### Joining an Aurora global database
+
+Use `globalClusterIdentifier` to add a cluster to an [Aurora global database](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html).
+The cluster's engine and engine version must match the global database:
+
+```ts
+declare const vpc: ec2.Vpc;
+
+const globalCluster = new rds.CfnGlobalCluster(this, 'GlobalCluster', {
+  globalClusterIdentifier: 'my-global-database',
+  engine: 'aurora-mysql',
+  engineVersion: '8.0.mysql_aurora.3.07.1',
+});
+
+new rds.DatabaseCluster(this, 'PrimaryCluster', {
+  engine: rds.DatabaseClusterEngine.auroraMysql({
+    version: rds.AuroraMysqlEngineVersion.VER_3_07_1,
+  }),
+  writer: rds.ClusterInstance.provisioned('Writer', {
+    instanceType: ec2.InstanceType.of(ec2.InstanceClass.R6G, ec2.InstanceSize.LARGE),
+  }),
+  vpc,
+  globalClusterIdentifier: globalCluster.ref,
+});
+```
+
+The first cluster that joins an empty global database becomes its primary cluster. A secondary
+cluster in another region joins with the same `globalClusterIdentifier` and inherits its master
+credentials from the primary cluster.
+
 ## Starting an instance database
 
 To set up an instance database, define a `DatabaseInstance`. You must

@@ -1399,6 +1399,17 @@ export interface DatabaseClusterProps extends DatabaseClusterBaseProps {
   readonly replicationSourceIdentifier?: string;
 
   /**
+   * The identifier of the Aurora global database cluster this DB cluster joins.
+   *
+   * Use it to make the cluster the primary or a secondary cluster of an Aurora global database,
+   * for example one created with `CfnGlobalCluster`.
+   *
+   * @default - The DB cluster is not part of a global database
+   * @see https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
+   */
+  readonly globalClusterIdentifier?: string;
+
+  /**
    * Whether to use RDS native integration with AWS Secrets Manager for master user password management.
    *
    * When enabled, RDS generates and manages the master user password in Secrets Manager.
@@ -1557,6 +1568,7 @@ export class DatabaseCluster extends DatabaseClusterNew {
       manageMasterUserPassword,
       masterUserSecret,
       replicationSourceIdentifier: props.replicationSourceIdentifier,
+      globalClusterIdentifier: props.globalClusterIdentifier,
     });
 
     this.clusterIdentifier = cluster.ref;

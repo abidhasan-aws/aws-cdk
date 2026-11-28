@@ -15,7 +15,7 @@ import {
 } from '../../cx-api';
 import type { IClusterEngine } from '../lib';
 import {
-  AuroraMysqlEngineVersion, AuroraPostgresEngineVersion, CfnDBCluster, Credentials, DatabaseCluster,
+  AuroraMysqlEngineVersion, AuroraPostgresEngineVersion, CfnDBCluster, CfnGlobalCluster, Credentials, DatabaseCluster,
   DatabaseClusterEngine, DatabaseClusterFromSnapshot, ParameterGroup, PerformanceInsightRetention, SubnetGroup, DatabaseSecret,
   DatabaseInstanceEngine, SqlServerEngineVersion, SnapshotCredentials, InstanceUpdateBehaviour, NetworkType, ClusterInstance, CaCertificate,
   ClusterScalabilityType,
@@ -5326,6 +5326,66 @@ describe('cluster', () => {
       },
       replicationSourceIdentifier: 'identifier',
     })).toThrow('Cannot specify both `replicationSourceIdentifier` and `credentials`');
+  });
+
+  test('cluster joins a global database with globalClusterIdentifier', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+
+    // WHEN
+    new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+      globalClusterIdentifier: 'my-global-cluster',
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: 'my-global-cluster',
+    });
+  });
+
+  test('globalClusterIdentifier accepts a reference to a global cluster', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+    const globalCluster = new CfnGlobalCluster(stack, 'GlobalCluster', {
+      globalClusterIdentifier: 'my-global-cluster',
+      engine: 'aurora-mysql',
+    });
+
+    // WHEN
+    new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+      globalClusterIdentifier: globalCluster.ref,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: { Ref: 'GlobalCluster' },
+    });
+  });
+
+  test('globalClusterIdentifier is absent by default', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+
+    // WHEN
+    new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: Match.absent(),
+    });
   });
 
   test('create a cluster from a snapshot', () => {

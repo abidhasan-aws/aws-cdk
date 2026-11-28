@@ -1,6 +1,7 @@
 import type { Construct } from 'constructs';
 import * as iam from '../../../aws-iam';
 import * as sfn from '../../../aws-stepfunctions';
+import { isValidJsonataExpression } from '../../../aws-stepfunctions/lib/private/jsonata';
 import { ArnFormat, Stack, ValidationError } from '../../../core';
 import { lit } from '../../../core/lib/private/literal-string';
 import type { IStateMachineRef } from '../../../interfaces/generated/aws-stepfunctions-interfaces.generated';
@@ -34,7 +35,8 @@ interface StepFunctionsStartExecutionOptions {
    * Pass the execution ID from the context object to the execution input.
    * This allows the Step Functions UI to link child executions from parent executions, making it easier to trace execution flow across state machines.
    *
-   * If you set this property to `true`, the `input` property must be an object (provided by `sfn.TaskInput.fromObject`) or omitted entirely.
+   * If you set this property to `true`, the `input` property must be an object (provided by `sfn.TaskInput.fromObject`),
+   * a JSONata expression (provided by `sfn.TaskInput.fromText`) when the state uses JSONata, or omitted entirely.
    *
    * @see https://docs.aws.amazon.com/step-functions/latest/dg/concepts-nested-workflows.html#nested-execution-startid
    *
@@ -106,7 +108,7 @@ export class StepFunctionsStartExecution extends sfn.TaskStateBase {
       throw new ValidationError(lit`IsRequiredTaskTokenRequired`, 'Task Token is required in `input` for callback. Use JsonPath.taskToken to set the token.', scope);
     }
 
-    if (this.props.associateWithParent && props.input && props.input.type !== sfn.InputType.OBJECT) {
+    if (this.props.associateWithParent && props.input && props.input.type !== sfn.InputType.OBJECT && !this.isJsonataTextInput()) {
       throw new ValidationError(lit`CouldEnableBecauseTaken`, 'Could not enable `associateWithParent` because `input` is taken directly from a JSON path. Use `sfn.TaskInput.fromObject` instead.', scope);
     }
 
@@ -129,7 +131,16 @@ export class StepFunctionsStartExecution extends sfn.TaskStateBase {
           ? '{% $states.context.Execution.Id %}'
           : sfn.JsonPath.stringAt('$$.Execution.Id'),
       };
-      input = this.props.input ? { ...this.props.input.value, ...associateWithParentEntry } : associateWithParentEntry;
+      if (this.props.input && this.isJsonataTextInput()) {
+        if (queryLanguage !== sfn.QueryLanguage.JSONATA) {
+          throw new ValidationError(lit`CouldEnableBecauseTaken`, 'Could not enable `associateWithParent` because `input` is taken directly from a JSON path. Use `sfn.TaskInput.fromObject` instead.', this);
+        }
+        // A JSONata expression cannot be spread, so the execution ID is merged in at run time
+        const expression = this.props.input.value.slice(2, -2).trim();
+        input = `{% $merge([(${expression}), {"AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID": $states.context.Execution.Id}]) %}`;
+      } else {
+        input = this.props.input ? { ...this.props.input.value, ...associateWithParentEntry } : associateWithParentEntry;
+      }
     } else {
       input = this.props.input ? this.props.input.value: sfn.TaskInput.fromJsonPathAt('$').value;
     }
@@ -142,6 +153,12 @@ export class StepFunctionsStartExecution extends sfn.TaskStateBase {
         Name: this.props.name,
       }, queryLanguage),
     };
+  }
+
+  private isJsonataTextInput(): boolean {
+    return this.props.input?.type === sfn.InputType.TEXT
+      && typeof this.props.input.value === 'string'
+      && isValidJsonataExpression(this.props.input.value);
   }
 
   /**

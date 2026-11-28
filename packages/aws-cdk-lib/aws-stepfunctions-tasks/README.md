@@ -2086,7 +2086,19 @@ const task = new tasks.StepFunctionsStartExecution(this, 'ChildTask', {
 
 This will add the payload `AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$: $$.Execution.Id` to the
 `input`property for you, which will pass the execution ID from the context object to the
-execution input. It requires `input` to be an object or not be set at all.
+execution input. It requires `input` to be an object or not be set at all. In a JSONata state,
+`input` can also be a JSONata expression from `sfn.TaskInput.fromText`, which is merged with the
+execution ID using `$merge`.
+
+```ts
+declare const child: sfn.StateMachine;
+const task = tasks.StepFunctionsStartExecution.jsonata(this, 'ChildTask', {
+  stateMachine: child,
+  associateWithParent: true,
+  integrationPattern: sfn.IntegrationPattern.WAIT_FOR_TASK_TOKEN,
+  input: sfn.TaskInput.fromText('{% $merge([$states.input, { "token": $states.context.Task.Token }]) %}'),
+});
+```
 
 ### Invoke Activity
 

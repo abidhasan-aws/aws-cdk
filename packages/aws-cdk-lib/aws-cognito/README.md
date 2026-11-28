@@ -841,6 +841,11 @@ pool.addClient('app-client', {
 });
 ```
 
+When the authorization code grant or implicit grant flow is enabled and `callbackUrls` is not set, the
+placeholder `https://example.com` is used as the callback URL and the warning
+`@aws-cdk/aws-cognito:defaultCallbackUrl` is emitted. Set `callbackUrls` to your application's URLs, or acknowledge
+the warning with `Annotations.of(client).acknowledgeWarning('@aws-cdk/aws-cognito:defaultCallbackUrl')`.
+
 To set a default redirect URI, use the `defaultRedirectUri` property.
 Its value must be present in the `callbackUrls` list.
 

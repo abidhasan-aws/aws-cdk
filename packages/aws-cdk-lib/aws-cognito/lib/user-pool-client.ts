@@ -520,8 +520,11 @@ export class UserPoolClient extends Resource implements IUserPoolClient {
         // The placeholder keeps existing templates unchanged, but it is never a real redirect
         // target, so tell the user to set their own.
         callbackUrls = ['https://example.com'];
-        Annotations.of(this).addWarningV2('@aws-cdk/aws-cognito:defaultCallbackUrl',
-          'oAuth.callbackUrls is not set while the authorizationCodeGrant or implicitCodeGrant OAuth flow is enabled, so the placeholder \'https://example.com\' is used as the callback URL. Set oAuth.callbackUrls to the URLs of your application, or disable these flows.');
+        // With OAuth disabled the placeholder never reaches the template.
+        if (!props.disableOAuth) {
+          Annotations.of(this).addWarningV2('@aws-cdk/aws-cognito:defaultCallbackUrl',
+            'oAuth.callbackUrls is not set while the authorizationCodeGrant or implicitCodeGrant OAuth flow is enabled, so the placeholder \'https://example.com\' is used as the callback URL. Set oAuth.callbackUrls to the URLs of your application or disable these flows; if another construct created this client, pass it your own UserPoolClient instead.');
+        }
       } else if (callbackUrls.length === 0) {
         throw new ValidationError(lit`CallbackUrlEmptyCodeGrant`, 'callbackUrl must not be empty when codeGrant or implicitGrant OAuth flows are enabled.', this);
       }

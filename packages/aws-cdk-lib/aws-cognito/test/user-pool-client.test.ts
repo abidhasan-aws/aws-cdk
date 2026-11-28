@@ -559,7 +559,7 @@ describe('User Pool Client', () => {
       Match.stringLikeRegexp('oAuth.callbackUrls is not set.*\\[ack: @aws-cdk/aws-cognito:defaultCallbackUrl\\]'));
   });
 
-  test('does not warn when callbackUrls are set or no code grant flow is enabled', () => {
+  test('does not warn when callbackUrls are set, no code grant flow is enabled or OAuth is disabled', () => {
     // GIVEN
     const stack = new Stack();
     const pool = new UserPool(stack, 'Pool');
@@ -576,6 +576,9 @@ describe('User Pool Client', () => {
           clientCredentials: true,
         },
       },
+    });
+    pool.addClient('Client3', {
+      disableOAuth: true,
     });
 
     // THEN

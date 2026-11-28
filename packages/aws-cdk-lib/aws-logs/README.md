@@ -40,6 +40,25 @@ publish their log group to a specific region, such as AWS Chatbot creating a log
 
 By default, the log group created by LogRetention will be retained after the stack is deleted. If the RemovalPolicy is set to DESTROY, then the log group will be deleted when the stack is deleted.
 
+Set `encryptionKey` to encrypt the log group with a KMS customer managed key. The key is used when
+the log group is created, and is associated with the log group when it already exists. The key policy
+must allow the CloudWatch Logs service principal to use the key, and the key must be in the same region
+as the log group, see [encrypting CloudWatch
+Logs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html).
+Removing `encryptionKey` later does not disassociate the key from the log group.
+
+```ts
+import * as kms from 'aws-cdk-lib/aws-kms';
+
+declare const key: kms.IKey;
+
+new logs.LogRetention(this, 'LogRetention', {
+  logGroupName: '/aws/lambda/my-function',
+  retention: logs.RetentionDays.ONE_WEEK,
+  encryptionKey: key,
+});
+```
+
 ## Log Group Class
 
 CloudWatch Logs offers three classes of log groups:

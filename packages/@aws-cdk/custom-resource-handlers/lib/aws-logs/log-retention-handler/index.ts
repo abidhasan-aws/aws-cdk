@@ -18,21 +18,33 @@ interface LogRetentionEvent extends Omit<AWSLambda.CloudFormationCustomResourceE
       maxRetries?: string;
     };
     RemovalPolicy?: string;
+    KmsKeyId?: string;
   };
 }
 
 /**
  * Creates a log group and doesn't throw if it exists.
+ *
+ * When a KMS key is given and the log group already exists, the key is associated with it.
  */
-async function createLogGroupSafe(logGroupName: string, client: Logs.CloudWatchLogsClient, withDelay: (block: () => Promise<void>) => Promise<void>) {
+async function createLogGroupSafe(
+  logGroupName: string,
+  client: Logs.CloudWatchLogsClient,
+  withDelay: (block: () => Promise<void>) => Promise<void>,
+  kmsKeyId?: string,
+) {
   await withDelay(async () => {
     try {
-      const params = { logGroupName };
+      const params = { logGroupName, kmsKeyId };
       const command = new Logs.CreateLogGroupCommand(params);
       await client.send(command);
     } catch (error: any) {
       if (error.name === 'ResourceAlreadyExistsException') {
-        // The log group is already created by the lambda execution
+        // The log group is already created, e.g. by the lambda execution
+        if (kmsKeyId) {
+          const associateCommand = new Logs.AssociateKmsKeyCommand({ logGroupName, kmsKeyId });
+          await client.send(associateCommand);
+        }
         return;
       }
 
@@ -105,7 +117,7 @@ export async function handler(event: LogRetentionEvent, context: AWSLambda.Conte
 
     if (event.RequestType === 'Create' || event.RequestType === 'Update') {
       // Act on the target log group
-      await createLogGroupSafe(logGroupName, client, withDelay);
+      await createLogGroupSafe(logGroupName, client, withDelay, event.ResourceProperties.KmsKeyId);
       await setRetentionPolicy(logGroupName, client, withDelay, parseIntOptional(event.ResourceProperties.RetentionInDays));
 
       // Configure the Log Group for the Custom Resource function itself

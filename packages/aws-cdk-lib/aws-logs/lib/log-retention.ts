@@ -2,9 +2,11 @@ import * as path from 'path';
 import { Construct } from 'constructs';
 import { RetentionDays } from './log-group';
 import * as iam from '../../aws-iam';
+import type * as kms from '../../aws-kms';
 import * as s3_assets from '../../aws-s3-assets';
 import * as cdk from '../../core';
 import { ArnFormat } from '../../core';
+import { lit } from '../../core/lib/private/literal-string';
 import { propertyInjectable } from '../../core/lib/prop-injectable';
 
 /**
@@ -46,6 +48,18 @@ export interface LogRetentionProps {
    * @default RemovalPolicy.RETAIN
    */
   readonly removalPolicy?: cdk.RemovalPolicy;
+
+  /**
+   * The KMS customer managed key to encrypt the log group with.
+   *
+   * The key is used when the log group is created, and associated with the
+   * log group when it already exists. The key policy must allow the CloudWatch
+   * Logs service principal to use the key, and the key must be in the same
+   * region as the log group (`logGroupRegion`, or the stack region).
+   *
+   * @default - Server-side encryption managed by the CloudWatch Logs service
+   */
+  readonly encryptionKey?: kms.IKeyRef;
 }
 
 /**
@@ -97,6 +111,11 @@ export class LogRetention extends Construct {
       provider.grantDeleteLogGroup(props.logGroupName);
     }
 
+    if (props.encryptionKey) {
+      this.validateEncryptionKeyRegion(props.encryptionKey, props.logGroupRegion);
+      provider.grantAssociateKmsKey(props.logGroupName, props.logGroupRegion);
+    }
+
     // Need to use a CfnResource here to prevent lerna dependency cycles
     // aws-cdk-lib/aws-cloudformation -> aws-cdk-lib/aws-lambda -> aws-cdk-lib/aws-cloudformation
     const retryOptions = props.logRetentionRetryOptions;
@@ -111,6 +130,7 @@ export class LogRetention extends Construct {
         } : undefined,
         RetentionInDays: props.retention === RetentionDays.INFINITE ? undefined : props.retention,
         RemovalPolicy: props.removalPolicy,
+        KmsKeyId: props.encryptionKey?.keyRef.keyArn,
       },
     });
 
@@ -124,6 +144,24 @@ export class LogRetention extends Construct {
       resourceName: `${logGroupName}:*`,
       arnFormat: ArnFormat.COLON_RESOURCE_NAME,
     });
+  }
+
+  /**
+   * CloudWatch Logs requires the KMS key to be in the same region as the log group.
+   * Fail at synthesis when both regions are known and differ.
+   */
+  private validateEncryptionKeyRegion(key: kms.IKeyRef, logGroupRegion?: string) {
+    const groupRegion = logGroupRegion ?? cdk.Stack.of(this).region;
+    const keyArn = key.keyRef.keyArn;
+    let keyRegion: string | undefined;
+    if (!cdk.Token.isUnresolved(keyArn)) {
+      keyRegion = cdk.Arn.split(keyArn, ArnFormat.SLASH_RESOURCE_NAME).region;
+    } else if (cdk.Resource.isResource(key)) {
+      keyRegion = key.env.region;
+    }
+    if (keyRegion && !cdk.Token.isUnresolved(keyRegion) && !cdk.Token.isUnresolved(groupRegion) && keyRegion !== groupRegion) {
+      throw new cdk.ValidationError(lit`LogRetentionKeyRegionMismatch`, `encryptionKey must be in the same region as the log group (${groupRegion}), got a key in ${keyRegion}`, this);
+    }
   }
 
   /**
@@ -209,6 +247,23 @@ class LogRetentionFunction extends Construct implements cdk.ITaggable {
       actions: ['logs:DeleteLogGroup'],
       // Only allow deleting the specific log group.
       resources: [cdk.Stack.of(this).formatArn({
+        service: 'logs',
+        resource: 'log-group',
+        resourceName: `${logGroupName}:*`,
+        arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+      })],
+    }));
+  }
+
+  /**
+   * @internal
+   */
+  public grantAssociateKmsKey(logGroupName: string, logGroupRegion?: string) {
+    this.role.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['logs:AssociateKmsKey'],
+      // Only allow associating a key with the specific log group.
+      resources: [cdk.Stack.of(this).formatArn({
+        region: logGroupRegion,
         service: 'logs',
         resource: 'log-group',
         resourceName: `${logGroupName}:*`,

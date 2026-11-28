@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { Match, Template } from '../../assertions';
 import * as iam from '../../aws-iam';
+import * as kms from '../../aws-kms';
 import * as cdk from '../../core';
 import * as cxapi from '../../cx-api';
 import { LogRetention, RetentionDays } from '../lib';
@@ -463,6 +464,132 @@ describe('log retention', () => {
     Template.fromStack(stack).hasResourceProperties('Custom::LogRetention', {
       LogGroupRegion: 'us-east-1',
     });
+  });
+
+  test('with encryptionKey specified', () => {
+    // GIVEN
+    const stack = new cdk.Stack();
+    const key = new kms.Key(stack, 'Key');
+
+    // WHEN
+    new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      retention: RetentionDays.ONE_MONTH,
+      encryptionKey: key,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('Custom::LogRetention', {
+      LogGroupName: 'group',
+      KmsKeyId: { 'Fn::GetAtt': ['Key961B73FD', 'Arn'] },
+    });
+    Template.fromStack(stack).hasResourceProperties('AWS::IAM::Policy', {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          {
+            Action: 'logs:AssociateKmsKey',
+            Effect: 'Allow',
+            Resource: {
+              'Fn::Join': ['', [
+                'arn:',
+                { Ref: 'AWS::Partition' },
+                ':logs:',
+                { Ref: 'AWS::Region' },
+                ':',
+                { Ref: 'AWS::AccountId' },
+                ':log-group:group:*',
+              ]],
+            },
+          },
+        ]),
+      },
+    });
+  });
+
+  test('without encryptionKey no KmsKeyId and no AssociateKmsKey permission', () => {
+    const stack = new cdk.Stack();
+
+    new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      retention: RetentionDays.ONE_MONTH,
+    });
+
+    const template = Template.fromStack(stack);
+    template.hasResourceProperties('Custom::LogRetention', {
+      KmsKeyId: Match.absent(),
+    });
+    expect(JSON.stringify(template.findResources('AWS::IAM::Policy'))).not.toContain('logs:AssociateKmsKey');
+  });
+
+  test('with encryptionKey and logGroupRegion grants AssociateKmsKey in that region', () => {
+    const stack = new cdk.Stack();
+    const key = kms.Key.fromKeyArn(stack, 'Key', 'arn:aws:kms:us-east-1:123456789012:key/my-key');
+
+    new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      logGroupRegion: 'us-east-1',
+      retention: RetentionDays.ONE_MONTH,
+      encryptionKey: key,
+    });
+
+    Template.fromStack(stack).hasResourceProperties('Custom::LogRetention', {
+      KmsKeyId: 'arn:aws:kms:us-east-1:123456789012:key/my-key',
+    });
+    Template.fromStack(stack).hasResourceProperties('AWS::IAM::Policy', {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          {
+            Action: 'logs:AssociateKmsKey',
+            Effect: 'Allow',
+            Resource: {
+              'Fn::Join': ['', [
+                'arn:',
+                { Ref: 'AWS::Partition' },
+                ':logs:us-east-1:',
+                { Ref: 'AWS::AccountId' },
+                ':log-group:group:*',
+              ]],
+            },
+          },
+        ]),
+      },
+    });
+  });
+
+  test('throws when encryptionKey is in a different region than logGroupRegion', () => {
+    const stack = new cdk.Stack();
+    const key = kms.Key.fromKeyArn(stack, 'Key', 'arn:aws:kms:us-east-1:123456789012:key/my-key');
+
+    expect(() => new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      logGroupRegion: 'eu-west-1',
+      retention: RetentionDays.ONE_MONTH,
+      encryptionKey: key,
+    })).toThrow(/encryptionKey must be in the same region as the log group \(eu-west-1\), got a key in us-east-1/);
+  });
+
+  test('throws when a stack key is in a different region than logGroupRegion', () => {
+    const stack = new cdk.Stack(undefined, 'Stack', { env: { region: 'us-west-2' } });
+    const key = new kms.Key(stack, 'Key');
+
+    expect(() => new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      logGroupRegion: 'us-east-1',
+      retention: RetentionDays.ONE_MONTH,
+      encryptionKey: key,
+    })).toThrow(/encryptionKey must be in the same region as the log group \(us-east-1\), got a key in us-west-2/);
+  });
+
+  test('does not throw when the key region is unresolved', () => {
+    const stack = new cdk.Stack();
+    const key = new kms.Key(stack, 'Key');
+
+    expect(() => new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      logGroupRegion: 'us-east-1',
+      retention: RetentionDays.ONE_MONTH,
+      encryptionKey: key,
+    })).not.toThrow();
   });
 
   test('log group ARN is well formed and conforms', () => {

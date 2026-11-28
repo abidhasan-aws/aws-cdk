@@ -1,0 +1,15 @@
+{
+  "version": "54.0.0",
+  "testCases": {
+    "LogRetentionKmsInteg/DefaultTest": {
+      "stacks": [
+        "aws-cdk-log-retention-kms-integ"
+      ],
+      "diffAssets": true,
+      "assertionStack": "LogRetentionKmsInteg/DefaultTest/DeployAssert",
+      "assertionStackName": "LogRetentionKmsIntegDefaultTestDeployAssert9EFC308D"
+    }
+  },
+  "enableLookups": true,
+  "minimumCliVersion": "2.1131.0"
+}

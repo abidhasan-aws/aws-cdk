@@ -1,4 +1,4 @@
-import { IntegTest } from '@aws-cdk/integ-tests-alpha';
+import { ExpectedResult, IntegTest } from '@aws-cdk/integ-tests-alpha';
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as cr from 'aws-cdk-lib/custom-resources';
@@ -23,7 +23,7 @@ const fn = new lambda.Function(stack, 'Function', {
   runtime: lambda.Runtime.NODEJS_20_X,
 });
 
-new cr.AwsCustomResource(stack, 'InvokeFunction', {
+const invoke = new cr.AwsCustomResource(stack, 'InvokeFunction', {
   onUpdate: {
     service: 'Lambda',
     action: 'InvokeCommand',
@@ -31,12 +31,19 @@ new cr.AwsCustomResource(stack, 'InvokeFunction', {
       FunctionName: fn.functionName,
     },
     physicalResourceId: cr.PhysicalResourceId.of(fn.functionArn),
+    outputPaths: ['StatusCode'],
   },
   policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
     resources: [fn.functionArn],
   }),
 });
 
-new IntegTest(app, 'AwsCustomResourceLambdaInvokeInteg', {
+const integ = new IntegTest(app, 'AwsCustomResourceLambdaInvokeInteg', {
   testCases: [stack],
 });
+
+integ.assertions.expect(
+  'InvokeStatusCode',
+  ExpectedResult.exact(200),
+  { result: invoke.getResponseField('StatusCode') },
+);

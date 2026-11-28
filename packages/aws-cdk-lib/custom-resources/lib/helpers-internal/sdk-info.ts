@@ -7,9 +7,20 @@ import * as path from 'path';
 export function awsSdkToIamAction(service: string, action: string): string {
   const v3Name = normalizeServiceName(service);
   const iamPrefix = v3Metadata()[v3Name]?.iamPrefix ?? v3Name;
-  const iamAction = normalizeActionName(v3Name, action);
+  const apiName = normalizeActionName(v3Name, action);
+  const iamAction = IAM_ACTION_OVERRIDES[v3Name]?.[apiName] ?? apiName;
   return `${iamPrefix}:${iamAction}`;
 }
+
+/**
+ * API names whose IAM action name differs from the API name, keyed by partial
+ * SDKv3 package name.
+ */
+const IAM_ACTION_OVERRIDES: Record<string, Record<string, string>> = {
+  lambda: {
+    Invoke: 'InvokeFunction',
+  },
+};
 
 /**
  * Normalize a service name from:

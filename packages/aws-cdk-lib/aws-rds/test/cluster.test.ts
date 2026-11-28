@@ -15,7 +15,7 @@ import {
 } from '../../cx-api';
 import type { IClusterEngine } from '../lib';
 import {
-  AuroraMysqlEngineVersion, AuroraPostgresEngineVersion, CfnDBCluster, Credentials, DatabaseCluster,
+  AuroraMysqlEngineVersion, AuroraPostgresEngineVersion, CfnDBCluster, CfnGlobalCluster, Credentials, DatabaseCluster,
   DatabaseClusterEngine, DatabaseClusterFromSnapshot, ParameterGroup, PerformanceInsightRetention, SubnetGroup, DatabaseSecret,
   DatabaseInstanceEngine, SqlServerEngineVersion, SnapshotCredentials, InstanceUpdateBehaviour, NetworkType, ClusterInstance, CaCertificate,
   ClusterScalabilityType,
@@ -5326,6 +5326,153 @@ describe('cluster', () => {
       },
       replicationSourceIdentifier: 'identifier',
     })).toThrow('Cannot specify both `replicationSourceIdentifier` and `credentials`');
+  });
+
+  test('cluster joins a global database with globalClusterIdentifier', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+
+    // WHEN
+    new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+      globalClusterIdentifier: 'my-global-cluster',
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: 'my-global-cluster',
+    });
+  });
+
+  test('globalClusterIdentifier accepts a reference to a global cluster', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+    const globalCluster = new CfnGlobalCluster(stack, 'GlobalCluster', {
+      globalClusterIdentifier: 'my-global-cluster',
+      engine: 'aurora-mysql',
+    });
+
+    // WHEN
+    new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+      globalClusterIdentifier: globalCluster.ref,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: { Ref: 'GlobalCluster' },
+    });
+  });
+
+  test('globalClusterIdentifier is absent by default', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+
+    // WHEN
+    new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: Match.absent(),
+    });
+  });
+
+  test('secondary cluster of a global database renders no master credentials or secret', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+
+    // WHEN
+    const cluster = new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+      globalClusterIdentifier: 'my-global-cluster',
+    });
+
+    // THEN
+    const template = Template.fromStack(stack);
+    template.hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: 'my-global-cluster',
+      MasterUsername: Match.absent(),
+      MasterUserPassword: Match.absent(),
+    });
+    template.resourceCountIs('AWS::SecretsManager::Secret', 0);
+    expect(cluster.secret).toBeUndefined();
+  });
+
+  test('primary cluster of a global database with explicit credentials renders master credentials', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+
+    // WHEN
+    const cluster = new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+      globalClusterIdentifier: 'my-global-cluster',
+      credentials: Credentials.fromGeneratedSecret('admin'),
+    });
+
+    // THEN
+    const template = Template.fromStack(stack);
+    template.hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: 'my-global-cluster',
+      MasterUsername: Match.anyValue(),
+      MasterUserPassword: Match.anyValue(),
+    });
+    template.resourceCountIs('AWS::SecretsManager::Secret', 1);
+    expect(cluster.secret).toBeDefined();
+  });
+
+  test('primary cluster of a global database can use manageMasterUserPassword with credentials', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+
+    // WHEN
+    new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+      globalClusterIdentifier: 'my-global-cluster',
+      credentials: Credentials.fromUsername('admin'),
+      manageMasterUserPassword: true,
+    });
+
+    // THEN
+    Template.fromStack(stack).hasResourceProperties('AWS::RDS::DBCluster', {
+      GlobalClusterIdentifier: 'my-global-cluster',
+      MasterUsername: 'admin',
+      ManageMasterUserPassword: true,
+    });
+  });
+
+  test('fails when manageMasterUserPassword is used with a secondary cluster of a global database', () => {
+    // GIVEN
+    const stack = testStack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+
+    // THEN
+    expect(() => new DatabaseCluster(stack, 'Database', {
+      engine: DatabaseClusterEngine.AURORA_MYSQL,
+      writer: ClusterInstance.provisioned('writer'),
+      vpc,
+      globalClusterIdentifier: 'my-global-cluster',
+      manageMasterUserPassword: true,
+    })).toThrow(/cannot use `manageMasterUserPassword` with `globalClusterIdentifier` without `credentials`/);
   });
 
   test('create a cluster from a snapshot', () => {

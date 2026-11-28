@@ -353,3 +353,73 @@ test('Execute State Machine - Associate With Parent - Input Provided - JSONata',
     },
   });
 });
+
+test('Execute State Machine - Wait For Task Token - Task Token in JSONata text input', () => {
+  const task = StepFunctionsStartExecution.jsonata(stack, 'ChildTask', {
+    stateMachine: child,
+    integrationPattern: sfn.IntegrationPattern.WAIT_FOR_TASK_TOKEN,
+    input: sfn.TaskInput.fromText('{% $merge([$states.input, { "token": $states.context.Task.Token }]) %}'),
+  });
+
+  new sfn.StateMachine(stack, 'ParentStateMachine', {
+    definitionBody: sfn.DefinitionBody.fromChainable(task),
+  });
+
+  expect(stack.resolve(task.toStateJson())).toMatchObject({
+    QueryLanguage: 'JSONata',
+    Arguments: {
+      Input: '{% $merge([$states.input, { "token": $states.context.Task.Token }]) %}',
+    },
+  });
+});
+
+test('Execute State Machine - Associate With Parent - JSONata text input', () => {
+  const task = StepFunctionsStartExecution.jsonata(stack, 'ChildTask', {
+    stateMachine: child,
+    associateWithParent: true,
+    integrationPattern: sfn.IntegrationPattern.WAIT_FOR_TASK_TOKEN,
+    input: sfn.TaskInput.fromText(`{%
+      $merge([$states.input, { "token": $states.context.Task.Token }])
+    %}`),
+  });
+
+  new sfn.StateMachine(stack, 'ParentStateMachine', {
+    definitionBody: sfn.DefinitionBody.fromChainable(task),
+  });
+
+  expect(stack.resolve(task.toStateJson())).toMatchObject({
+    QueryLanguage: 'JSONata',
+    Arguments: {
+      Input: '{% $merge([($merge([$states.input, { "token": $states.context.Task.Token }])), {"AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID": $states.context.Execution.Id}]) %}',
+    },
+  });
+});
+
+test('Execute State Machine - Associate With Parent - JSONata text input inherits query language from state machine', () => {
+  const task = new StepFunctionsStartExecution(stack, 'ChildTask', {
+    stateMachine: child,
+    associateWithParent: true,
+    input: sfn.TaskInput.fromText('{% { "foo": "bar" } %}'),
+  });
+
+  new sfn.StateMachine(stack, 'ParentStateMachine', {
+    queryLanguage: sfn.QueryLanguage.JSONATA,
+    definitionBody: sfn.DefinitionBody.fromChainable(task),
+  });
+
+  expect(stack.resolve(task.toStateJson(sfn.QueryLanguage.JSONATA))).toMatchObject({
+    Arguments: {
+      Input: '{% $merge([({ "foo": "bar" }), {"AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID": $states.context.Execution.Id}]) %}',
+    },
+  });
+});
+
+test('fails to associate with parent with JSONata text input in a JSONPath state', () => {
+  const task = StepFunctionsStartExecution.jsonPath(stack, 'ChildTask', {
+    stateMachine: child,
+    associateWithParent: true,
+    input: sfn.TaskInput.fromText('{% { "foo": "bar" } %}'),
+  });
+
+  expect(() => task.toStateJson()).toThrow('a JSONata `input` from `sfn.TaskInput.fromText` with `associateWithParent` requires the state to use `QueryLanguage.JSONATA`');
+});

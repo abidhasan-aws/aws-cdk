@@ -1404,6 +1404,11 @@ export interface DatabaseClusterProps extends DatabaseClusterBaseProps {
    * Use it to make the cluster the primary or a secondary cluster of an Aurora global database,
    * for example one created with `CfnGlobalCluster`.
    *
+   * A secondary cluster inherits its master credentials from the primary cluster, so when
+   * `credentials` is not set, no master username, password or secret is rendered and
+   * `manageMasterUserPassword` cannot be used. To make the cluster the primary of an empty
+   * global database, set `credentials` explicitly.
+   *
    * @default - The DB cluster is not part of a global database
    * @see https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-global-database.html
    */
@@ -1526,13 +1531,19 @@ export class DatabaseCluster extends DatabaseClusterNew {
       validateManagedPasswordCredentials(this, props.credentials);
     }
 
-    const canHaveCredentials = props.replicationSourceIdentifier === undefined;
+    // A secondary cluster of a global database inherits the master credentials from the primary
+    // cluster. Explicit `credentials` mark the cluster as the primary of an empty global database.
+    const isGlobalSecondary = props.globalClusterIdentifier !== undefined && props.credentials === undefined;
+    const canHaveCredentials = props.replicationSourceIdentifier === undefined && !isGlobalSecondary;
 
     // A read replica inherits the master credentials from its source cluster, so RDS does not
     // manage a master user secret for it. Reject the contradictory combination up front instead
     // of silently dropping `ManageMasterUserPassword` from the template.
-    if (props.manageMasterUserPassword && !canHaveCredentials) {
+    if (props.manageMasterUserPassword && props.replicationSourceIdentifier !== undefined) {
       throw new ValidationError(lit`ManagedPasswordIncompatibleWithReadReplica`, 'cannot use `manageMasterUserPassword` with `replicationSourceIdentifier`; read replicas inherit credentials from the source cluster', this);
+    }
+    if (props.manageMasterUserPassword && isGlobalSecondary) {
+      throw new ValidationError(lit`ManagedPasswordIncompatibleWithGlobalSecondary`, 'cannot use `manageMasterUserPassword` with `globalClusterIdentifier` without `credentials`; a secondary cluster inherits credentials from the primary cluster. Set `credentials` to make this cluster the primary', this);
     }
 
     this.manageMasterUserPassword = props.manageMasterUserPassword;
@@ -1546,13 +1557,13 @@ export class DatabaseCluster extends DatabaseClusterNew {
 
     if (props.manageMasterUserPassword) {
       // RDS-managed approach: RDS creates and manages the Secret automatically.
-      // `canHaveCredentials` is always true here because the read-replica combination is rejected above.
+      // `canHaveCredentials` is always true here because the read-replica and global secondary combinations are rejected above.
       masterUsername = props.credentials?.username ?? props.engine.defaultUsername ?? 'admin';
       manageMasterUserPassword = props.manageMasterUserPassword;
       masterUserSecret = props.credentials?.encryptionKey
         ? { kmsKeyId: props.credentials.encryptionKey.keyArn }
         : undefined;
-    } else {
+    } else if (!isGlobalSecondary) {
       // Standard approach: CDK creates and manages the Secret via DatabaseSecret
       const credentials = renderCredentials(this, props.engine, props.credentials);
       secret = credentials.secret;

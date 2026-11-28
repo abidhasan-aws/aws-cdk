@@ -1,7 +1,7 @@
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { ExpectedResult, IntegTest } from '@aws-cdk/integ-tests-alpha';
 import { App } from 'aws-cdk-lib';
-import { AuroraMysqlEngineVersion, CfnGlobalCluster, ClusterInstance, DatabaseCluster, DatabaseClusterEngine } from 'aws-cdk-lib/aws-rds';
+import { AuroraMysqlEngineVersion, CfnGlobalCluster, ClusterInstance, Credentials, DatabaseCluster, DatabaseClusterEngine } from 'aws-cdk-lib/aws-rds';
 import { IntegTestBaseStack } from './integ-test-base-stack';
 
 const app = new App();
@@ -24,6 +24,8 @@ const cluster = new DatabaseCluster(stack, 'Database', {
     instanceType: ec2.InstanceType.of(ec2.InstanceClass.R6G, ec2.InstanceSize.LARGE),
   }),
   globalClusterIdentifier: globalCluster.ref,
+  // explicit credentials make this cluster the primary of the empty global cluster
+  credentials: Credentials.fromUsername('admin'),
 });
 
 const integTest = new IntegTest(app, 'cluster-global-cluster-identifier-integ', {

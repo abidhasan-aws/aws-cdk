@@ -573,12 +573,16 @@ new rds.DatabaseCluster(this, 'PrimaryCluster', {
   }),
   vpc,
   globalClusterIdentifier: globalCluster.ref,
+  // explicit credentials make this cluster the primary of the empty global database
+  credentials: rds.Credentials.fromGeneratedSecret('admin'),
 });
 ```
 
-The first cluster that joins an empty global database becomes its primary cluster. A secondary
-cluster in another region joins with the same `globalClusterIdentifier` and inherits its master
-credentials from the primary cluster.
+The first cluster that joins an empty global database becomes its primary cluster, and it must set
+`credentials`. A secondary cluster, usually in another region, joins with the same
+`globalClusterIdentifier` and no `credentials`: it inherits its master credentials from the primary
+cluster, so CDK renders no master username, password or secret for it, and
+`manageMasterUserPassword` cannot be used.
 
 ## Starting an instance database
 

@@ -132,7 +132,6 @@ class DotnetStack extends cdk.Stack {
       serviceName: 'dotnet-demo',
       cloudWatchAgentSidecar: {
         containerName: 'cloudwatch-agent',
-        operatingSystemFamily: ecs.OperatingSystemFamily.WINDOWS_SERVER_2022_CORE,
         cpu: 256,
         memoryLimitMiB: 512,
       },

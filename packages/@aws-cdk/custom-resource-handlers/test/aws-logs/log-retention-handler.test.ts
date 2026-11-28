@@ -1,6 +1,6 @@
 
 import type { CloudWatchLogsClientResolvedConfig, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudwatch-logs';
-import { CloudWatchLogsClient, CreateLogGroupCommand, DeleteLogGroupCommand, DeleteRetentionPolicyCommand, OperationAbortedException, PutRetentionPolicyCommand, ResourceAlreadyExistsException } from '@aws-sdk/client-cloudwatch-logs';
+import { AssociateKmsKeyCommand, CloudWatchLogsClient, CreateLogGroupCommand, DeleteLogGroupCommand, DeleteRetentionPolicyCommand, OperationAbortedException, PutRetentionPolicyCommand, ResourceAlreadyExistsException } from '@aws-sdk/client-cloudwatch-logs';
 import type { AwsStub } from 'aws-sdk-client-mock';
 import { mockClient } from 'aws-sdk-client-mock';
 import 'aws-sdk-client-mock-jest';
@@ -129,6 +129,96 @@ describe('log retention provider', () => {
     });
 
     expect(cloudwatchLogsMock).not.toHaveReceivedCommand(DeleteRetentionPolicyCommand);
+
+    expect(request.isDone()).toEqual(true);
+  });
+
+  test('create event with KMS key', async () => {
+    cloudwatchLogsMock.on(CreateLogGroupCommand).resolves({});
+    cloudwatchLogsMock.on(PutRetentionPolicyCommand).resolves({});
+
+    const event = {
+      ...eventCommon,
+      RequestType: 'Create' as RequestType,
+      ResourceProperties: {
+        ServiceToken: 'token',
+        RetentionInDays: '30',
+        LogGroupName: 'group',
+        KmsKeyId: 'arn:aws:kms:us-east-1:123456789012:key/my-key',
+      },
+    };
+
+    const request = createRequest('SUCCESS');
+
+    await provider.handler(event, context);
+
+    expect(cloudwatchLogsMock).toHaveReceivedCommandWith(CreateLogGroupCommand, {
+      logGroupName: 'group',
+      kmsKeyId: 'arn:aws:kms:us-east-1:123456789012:key/my-key',
+    });
+    // The provider's own log group is not encrypted with the key
+    expect(cloudwatchLogsMock).toHaveReceivedCommandWith(CreateLogGroupCommand, {
+      logGroupName: '/aws/lambda/provider',
+      kmsKeyId: undefined,
+    });
+    expect(cloudwatchLogsMock).not.toHaveReceivedCommand(AssociateKmsKeyCommand);
+
+    expect(request.isDone()).toEqual(true);
+  });
+
+  test('associates KMS key when log group already exists', async () => {
+    cloudwatchLogsMock.on(CreateLogGroupCommand).rejects(RESOURCE_ALREADY_EXISTS);
+    cloudwatchLogsMock.on(AssociateKmsKeyCommand).resolves({});
+    cloudwatchLogsMock.on(PutRetentionPolicyCommand).resolves({});
+
+    const event = {
+      ...eventCommon,
+      RequestType: 'Update' as RequestType,
+      ResourceProperties: {
+        ServiceToken: 'token',
+        RetentionInDays: '30',
+        LogGroupName: 'group',
+        KmsKeyId: 'arn:aws:kms:us-east-1:123456789012:key/my-key',
+      },
+      OldResourceProperties: {
+        ServiceToken: 'token',
+        LogGroupName: 'group',
+        RetentionInDays: '30',
+      },
+    };
+
+    const request = createRequest('SUCCESS');
+
+    await provider.handler(event, context);
+
+    expect(cloudwatchLogsMock).toHaveReceivedCommandTimes(AssociateKmsKeyCommand, 1);
+    expect(cloudwatchLogsMock).toHaveReceivedCommandWith(AssociateKmsKeyCommand, {
+      logGroupName: 'group',
+      kmsKeyId: 'arn:aws:kms:us-east-1:123456789012:key/my-key',
+    });
+
+    expect(request.isDone()).toEqual(true);
+  });
+
+  test('does not associate a KMS key when none is given and log group already exists', async () => {
+    cloudwatchLogsMock.on(CreateLogGroupCommand).rejects(RESOURCE_ALREADY_EXISTS);
+    cloudwatchLogsMock.on(PutRetentionPolicyCommand).resolves({});
+
+    const event = {
+      ...eventCommon,
+      RequestType: 'Create' as RequestType,
+      ResourceProperties: {
+        ServiceToken: 'token',
+        RetentionInDays: '30',
+        LogGroupName: 'group',
+      },
+    };
+
+    const request = createRequest('SUCCESS');
+
+    await provider.handler(event, context);
+
+    expect(cloudwatchLogsMock).not.toHaveReceivedCommand(AssociateKmsKeyCommand);
 
     expect(request.isDone()).toEqual(true);
   });

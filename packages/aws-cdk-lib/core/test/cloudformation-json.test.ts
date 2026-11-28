@@ -257,6 +257,19 @@ describe('tokens returning CloudFormation intrinsics', () => {
     expect(evaluateCFN(resolved, context)).toEqual(expected);
   });
 
+  test('string literals inside Fn.base64 are not escaped', () => {
+    // GIVEN
+    const token = Fn.base64(Fn.sub('{"key":"${Value}"}', { Value: Aws.ACCOUNT_ID }));
+
+    // WHEN
+    const resolved = stack.resolve(stack.toJsonString({ token }));
+
+    // THEN
+    const context = { 'AWS::AccountId': 'value' };
+    const encoded = JSON.parse(evaluateCFN(resolved, context)).token;
+    expect(Buffer.from(encoded, 'base64').toString()).toEqual('{"key":"value"}');
+  });
+
   test('Tokens in Tokens are handled correctly', () => {
     // GIVEN
     const bucketName = new Intrinsic({ Ref: 'MyBucket' });

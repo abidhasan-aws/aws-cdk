@@ -556,6 +556,42 @@ describe('log retention', () => {
     });
   });
 
+  test('throws when encryptionKey is in a different region than logGroupRegion', () => {
+    const stack = new cdk.Stack();
+    const key = kms.Key.fromKeyArn(stack, 'Key', 'arn:aws:kms:us-east-1:123456789012:key/my-key');
+
+    expect(() => new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      logGroupRegion: 'eu-west-1',
+      retention: RetentionDays.ONE_MONTH,
+      encryptionKey: key,
+    })).toThrow(/encryptionKey must be in the same region as the log group \(eu-west-1\), got a key in us-east-1/);
+  });
+
+  test('throws when a stack key is in a different region than logGroupRegion', () => {
+    const stack = new cdk.Stack(undefined, 'Stack', { env: { region: 'us-west-2' } });
+    const key = new kms.Key(stack, 'Key');
+
+    expect(() => new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      logGroupRegion: 'us-east-1',
+      retention: RetentionDays.ONE_MONTH,
+      encryptionKey: key,
+    })).toThrow(/encryptionKey must be in the same region as the log group \(us-east-1\), got a key in us-west-2/);
+  });
+
+  test('does not throw when the key region is unresolved', () => {
+    const stack = new cdk.Stack();
+    const key = new kms.Key(stack, 'Key');
+
+    expect(() => new LogRetention(stack, 'MyLambda', {
+      logGroupName: 'group',
+      logGroupRegion: 'us-east-1',
+      retention: RetentionDays.ONE_MONTH,
+      encryptionKey: key,
+    })).not.toThrow();
+  });
+
   test('log group ARN is well formed and conforms', () => {
     const stack = new cdk.Stack();
     const group = new LogRetention(stack, 'MyLambda', {

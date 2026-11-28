@@ -42,7 +42,8 @@ By default, the log group created by LogRetention will be retained after the sta
 
 Set `encryptionKey` to encrypt the log group with a KMS customer managed key. The key is used when
 the log group is created, and is associated with the log group when it already exists. The key policy
-must allow the CloudWatch Logs service principal to use the key, see [encrypting CloudWatch
+must allow the CloudWatch Logs service principal to use the key, and the key must be in the same region
+as the log group, see [encrypting CloudWatch
 Logs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html).
 Removing `encryptionKey` later does not disassociate the key from the log group.
 
